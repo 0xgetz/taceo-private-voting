@@ -1,0 +1,32 @@
+{
+    "name": "taceo-private-voting",
+    "version": "1.0.0",
+    "description": "Private voting dApp using TACEO coCircom for MPC-based proof generation",
+    "main": "dist/index.js",
+    "scripts": {
+        "build:circuit": "circom circuits/vote.circom --r1cs --wasm --sym -o circuits/",
+        "setup": "snarkjs groth16 setup circuits/vote.r1cs pot12_final.ptau keys/vote.zkey",
+        "export:vkey": "snarkjs zkey export verificationkey keys/vote.zkey keys/verification_key.json",
+        "export:verifier": "snarkjs zkey export solidityverifier keys/vote.zkey contracts/Verifier.sol",
+        "compile": "hardhat compile",
+        "test": "hardhat test",
+        "deploy": "hardhat run scripts/deploy.ts --network sepolia",
+        "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+        "mpc:prove": "ts-node src/index.ts"
+    },
+    "dependencies": {
+        "@taceo/co-circom": "^0.5.0",
+        "@taceo/proof-client": "^0.3.0",
+        "circomlib": "^2.0.5",
+        "circomlibjs": "^0.1.7",
+        "snarkjs": "^0.7.0",
+        "ethers": "^6.9.0"
+    },
+    "devDependencies": {
+        "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+        "@types/node": "^20.0.0",
+        "hardhat": "^2.19.0",
+        "ts-node": "^10.9.0",
+        "typescript": "^5.3.0"
+    }
+}
