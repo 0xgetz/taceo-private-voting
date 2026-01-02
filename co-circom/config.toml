@@ -1,0 +1,38 @@
+[protocol]
+protocol = "rep3"  # Replicated Secret Sharing with 3 parties
+
+[parties]
+count = 3
+
+[[parties.config]]
+id = 0
+address = "party0.example.com:50000"
+tls_cert = "./certs/party0.crt"
+
+[[parties.config]]
+id = 1
+address = "party1.example.com:50001"
+tls_cert = "./certs/party1.crt"
+
+[[parties.config]]
+id = 2
+address = "party2.example.com:50002"
+tls_cert = "./certs/party2.crt"
+
+[circuit]
+r1cs = "./circuits/vote.r1cs"
+wasm = "./circuits/vote_js/vote.wasm"
+sym = "./circuits/vote.sym"
+
+[proving]
+proving_key = "./keys/vote.zkey"
+verification_key = "./keys/verification_key.json"
+
+[network]
+timeout_ms = 30000
+retry_count = 3
+buffer_size = 65536
+
+[output]
+proof_dir = "./proofs"
+public_signals_dir = "./public"
