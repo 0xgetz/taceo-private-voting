@@ -406,7 +406,7 @@ Enable debug: `DEBUG=taceo:* npm run start`
 
 ## License
 
-MIT License © 2024 Your Name
+MIT License © 2024 eyren 
 
 ## Resources
 
