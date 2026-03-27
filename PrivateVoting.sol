@@ -1,117 +1,210 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
-import "./Verifier.sol";
+/// @title IVerifier
+/// @notice Interface for the auto-generated Groth16 verifier
+/// @dev Run `npm run export:verifier` to generate the real verifier
+interface IVerifier {
+    function verifyProof(
+        uint256[2] calldata _pA,
+        uint256[2][2] calldata _pB,
+        uint256[2] calldata _pC,
+        uint256[2] calldata _pubSignals
+    ) external view returns (bool);
+}
 
+/// @title PrivateVoting
+/// @author eyren (@0xgetz)
+/// @notice Privacy-preserving voting contract using ZK-SNARKs (Groth16) and TACEO MPC
+/// @dev Uses Poseidon hash for commitments/nullifiers, Merkle tree for voter eligibility
 contract PrivateVoting {
+    // -------------------------------------------------------------------------
     // Events
+    // -------------------------------------------------------------------------
+
+    /// @notice Emitted when a vote is successfully cast
     event VoteCast(bytes32 indexed nullifierHash, uint256 timestamp);
-    event VotingEnded(uint256[] results);
-    event VoterRegistered(bytes32 indexed commitment);
-    
-    // State variables
-    Verifier public immutable verifier;
+
+    /// @notice Emitted when voting is finalized
+    event VotingFinalized(uint256[] results, uint256 timestamp);
+
+    /// @notice Emitted when the Merkle root is set
+    event MerkleRootSet(bytes32 indexed root);
+
+    // -------------------------------------------------------------------------
+    // State
+    // -------------------------------------------------------------------------
+
+    /// @notice The Groth16 verifier contract
+    IVerifier public immutable verifier;
+
+    /// @notice Merkle root of eligible voter commitments
     bytes32 public merkleRoot;
+
+    /// @notice Tracks used nullifiers to prevent double voting
     mapping(bytes32 => bool) public nullifierUsed;
+
+    /// @notice Vote counts per candidate (0-indexed)
     mapping(uint256 => uint256) public voteCounts;
-    
-    uint256 public votingStartTime;
-    uint256 public votingEndTime;
+
+    /// @notice Voting start timestamp (Unix)
+    uint256 public immutable votingStartTime;
+
+    /// @notice Voting end timestamp (Unix)
+    uint256 public immutable votingEndTime;
+
+    /// @notice Number of candidates
     uint256 public immutable candidateCount;
-    
+
+    /// @notice Whether voting has been finalized
     bool public votingEnded;
+
+    /// @notice Contract administrator
     address public admin;
-    
+
+    // -------------------------------------------------------------------------
     // Modifiers
+    // -------------------------------------------------------------------------
+
     modifier onlyAdmin() {
-        require(msg.sender == admin, "Not admin");
+        require(msg.sender == admin, "PrivateVoting: not admin");
         _;
     }
-    
+
     modifier votingActive() {
-        require(block.timestamp >= votingStartTime, "Voting not started");
-        require(block.timestamp <= votingEndTime, "Voting ended");
-        require(!votingEnded, "Voting finalized");
+        require(block.timestamp >= votingStartTime, "PrivateVoting: voting not started");
+        require(block.timestamp <= votingEndTime, "PrivateVoting: voting period ended");
+        require(!votingEnded, "PrivateVoting: voting finalized");
         _;
     }
-    
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
+
+    /// @notice Deploy the PrivateVoting contract
+    /// @param _verifier Address of the deployed Groth16 verifier
+    /// @param _candidateCount Number of candidates (immutable)
+    /// @param _votingDuration Duration of voting period in seconds
     constructor(
         address _verifier,
         uint256 _candidateCount,
         uint256 _votingDuration
     ) {
-        verifier = Verifier(_verifier);
+        require(_verifier != address(0), "PrivateVoting: zero verifier address");
+        require(_candidateCount > 0, "PrivateVoting: candidate count must be > 0");
+        require(_votingDuration > 0, "PrivateVoting: duration must be > 0");
+
+        verifier = IVerifier(_verifier);
         candidateCount = _candidateCount;
         admin = msg.sender;
         votingStartTime = block.timestamp;
         votingEndTime = block.timestamp + _votingDuration;
     }
-    
-    /// @notice Set the Merkle root of eligible voters
-    /// @param _root The Merkle root hash
+
+    // -------------------------------------------------------------------------
+    // Admin
+    // -------------------------------------------------------------------------
+
+    /// @notice Set the Merkle root of eligible voters (one-time only)
+    /// @param _root Poseidon Merkle root
     function setMerkleRoot(bytes32 _root) external onlyAdmin {
-        require(merkleRoot == bytes32(0), "Root already set");
+        require(merkleRoot == bytes32(0), "PrivateVoting: root already set");
+        require(_root != bytes32(0), "PrivateVoting: zero root");
         merkleRoot = _root;
+        emit MerkleRootSet(_root);
     }
-    
-    /// @notice Cast a private vote with ZK proof
-    /// @param _proof The ZK-SNARK proof generated via coCircom MPC
-    /// @param _nullifierHash Hash to prevent double voting
+
+    /// @notice Transfer admin role to a new address
+    /// @param _newAdmin New administrator address
+    function transferAdmin(address _newAdmin) external onlyAdmin {
+        require(_newAdmin != address(0), "PrivateVoting: zero address");
+        admin = _newAdmin;
+    }
+
+    // -------------------------------------------------------------------------
+    // Voting
+    // -------------------------------------------------------------------------
+
+    /// @notice Cast a private vote with a ZK-SNARK proof
+    /// @param _proof Groth16 proof array [pA[0], pA[1], pB[0][1], pB[0][0], pB[1][1], pB[1][0], pC[0], pC[1]]
+    /// @param _nullifierHash Unique nullifier preventing double voting
     /// @param _voteCommitment Encrypted vote commitment
     function castVote(
         uint256[8] calldata _proof,
         bytes32 _nullifierHash,
         bytes32 _voteCommitment
     ) external votingActive {
-        require(!nullifierUsed[_nullifierHash], "Vote already cast");
-        
-        uint256[2] memory publicInputs;
-        publicInputs[0] = uint256(merkleRoot);
-        publicInputs[1] = uint256(_nullifierHash);
-        
+        require(merkleRoot != bytes32(0), "PrivateVoting: merkle root not set");
+        require(!nullifierUsed[_nullifierHash], "PrivateVoting: already voted");
+
+        uint256[2] memory pubSignals = [
+            uint256(merkleRoot),
+            uint256(_nullifierHash)
+        ];
+
         require(
             verifier.verifyProof(
                 [_proof[0], _proof[1]],
                 [[_proof[2], _proof[3]], [_proof[4], _proof[5]]],
                 [_proof[6], _proof[7]],
-                publicInputs
+                pubSignals
             ),
-            "Invalid proof"
+            "PrivateVoting: invalid proof"
         );
-        
+
         nullifierUsed[_nullifierHash] = true;
-        
         emit VoteCast(_nullifierHash, block.timestamp);
     }
-    
-    /// @notice Submit vote tally computed via MPC
-    /// @param _results Array of vote counts per candidate
-    /// @param _tallyProof Proof of correct tally computation
+
+    /// @notice Submit final vote tally (admin only, after voting ends)
+    /// @param _results Vote counts per candidate
+    /// @param _tallyProof Reserved for future ZK tally verification
     function submitTally(
         uint256[] calldata _results,
         uint256[8] calldata _tallyProof
     ) external onlyAdmin {
-        require(block.timestamp > votingEndTime, "Voting not ended");
-        require(!votingEnded, "Already finalized");
-        require(_results.length == candidateCount, "Invalid results length");
-        
+        require(block.timestamp > votingEndTime, "PrivateVoting: voting not ended");
+        require(!votingEnded, "PrivateVoting: already finalized");
+        require(_results.length == candidateCount, "PrivateVoting: invalid results length");
+
         for (uint256 i = 0; i < candidateCount; i++) {
             voteCounts[i] = _results[i];
         }
-        
+
         votingEnded = true;
-        emit VotingEnded(_results);
+        emit VotingFinalized(_results, block.timestamp);
     }
-    
-    /// @notice Get voting results (only available after voting ends)
-    /// @return Array of vote counts per candidate
-    function getResults() external view returns (uint256[] memory) {
-        require(votingEnded, "Voting not finalized");
-        
-        uint256[] memory results = new uint256[](candidateCount);
+
+    // -------------------------------------------------------------------------
+    // Views
+    // -------------------------------------------------------------------------
+
+    /// @notice Get voting results (only after finalization)
+    /// @return results Array of vote counts per candidate
+    function getResults() external view returns (uint256[] memory results) {
+        require(votingEnded, "PrivateVoting: voting not finalized");
+        results = new uint256[](candidateCount);
         for (uint256 i = 0; i < candidateCount; i++) {
             results[i] = voteCounts[i];
         }
-        return results;
+    }
+
+    /// @notice Check whether voting is currently active
+    function isVotingActive() external view returns (bool) {
+        return block.timestamp >= votingStartTime
+            && block.timestamp <= votingEndTime
+            && !votingEnded;
+    }
+
+    /// @notice Get current Merkle root
+    function getMerkleRoot() external view returns (bytes32) {
+        return merkleRoot;
+    }
+
+    /// @notice Get remaining voting time in seconds (0 if ended)
+    function timeRemaining() external view returns (uint256) {
+        if (block.timestamp >= votingEndTime) return 0;
+        return votingEndTime - block.timestamp;
     }
 }

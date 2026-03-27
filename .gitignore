@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+artifacts/
+cache/
+typechain-types/
+
+# ZK Circuit artifacts
+circuits/**/*.r1cs
+circuits/**/*.sym
+circuits/**/*_js/
+keys/
+proofs/
+*.ptau
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Deployment
+deployment.json
+
+# Misc
+.DS_Store
+*.log
+coverage/
+coverage.json

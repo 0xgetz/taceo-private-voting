@@ -1,32 +1,49 @@
 {
-    "name": "taceo-private-voting",
-    "version": "1.0.0",
-    "description": "Private voting dApp using TACEO coCircom for MPC-based proof generation",
-    "main": "dist/index.js",
-    "scripts": {
-        "build:circuit": "circom circuits/vote.circom --r1cs --wasm --sym -o circuits/",
-        "setup": "snarkjs groth16 setup circuits/vote.r1cs pot12_final.ptau keys/vote.zkey",
-        "export:vkey": "snarkjs zkey export verificationkey keys/vote.zkey keys/verification_key.json",
-        "export:verifier": "snarkjs zkey export solidityverifier keys/vote.zkey contracts/Verifier.sol",
-        "compile": "hardhat compile",
-        "test": "hardhat test",
-        "deploy": "hardhat run scripts/deploy.ts --network sepolia",
-        "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
-        "mpc:prove": "ts-node src/index.ts"
-    },
-    "dependencies": {
-        "@taceo/co-circom": "^0.5.0",
-        "@taceo/proof-client": "^0.3.0",
-        "circomlib": "^2.0.5",
-        "circomlibjs": "^0.1.7",
-        "snarkjs": "^0.7.0",
-        "ethers": "^6.9.0"
-    },
-    "devDependencies": {
-        "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-        "@types/node": "^20.0.0",
-        "hardhat": "^2.19.0",
-        "ts-node": "^10.9.0",
-        "typescript": "^5.3.0"
-    }
+  "name": "taceo-private-voting",
+  "version": "2.0.0",
+  "description": "🗳️ Privacy-preserving voting dApp using ZK-SNARKs and MPC (TACEO coCircom)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:circuit": "circom circuits/vote.circom --r1cs --wasm --sym -o circuits/",
+    "setup": "snarkjs groth16 setup circuits/vote.r1cs pot12_final.ptau keys/vote.zkey",
+    "export:vkey": "snarkjs zkey export verificationkey keys/vote.zkey keys/verification_key.json",
+    "export:verifier": "snarkjs zkey export solidityverifier keys/vote.zkey contracts/Verifier.sol",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "deploy": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
+    "node": "hardhat node",
+    "clean": "hardhat clean && rm -rf dist"
+  },
+  "keywords": ["zk-snarks", "privacy", "voting", "mpc", "taceo", "ethereum", "solidity", "web3"],
+  "author": "eyren <@0xgetz>",
+  "license": "MIT",
+  "homepage": "https://github.com/0xgetz/taceo-private-voting",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0xgetz/taceo-private-voting.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xgetz/taceo-private-voting/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.0",
+    "ethers": "^6.9.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "hardhat": "^2.19.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  }
 }
